@@ -1,0 +1,1 @@
+# smp-pzpi-23-3-rymchuk-danylo
