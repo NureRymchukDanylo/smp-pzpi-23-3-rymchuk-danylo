@@ -1,0 +1,911 @@
+Міністерство освіти і науки України 
+Харківський національний університет радіоелектроніки 
+
+
+Кафедра програмної інженерії
+ 
+
+
+Звіт
+з лабораторної роботи № 4
+з дисципліни «Скриптові мови програмування»
+
+
+
+
+
+
+Виконав:                                                           	     Перевірив:
+ст. гр. ПЗПІ-23-3                                    	       	     ст. викл. Сокорчук І. П.
+Римчук Д. О.
+
+
+
+
+
+
+
+Харків 2025
+1 ІСТОРІЯ ЗМІН
+№
+Дата
+Версія звіту
+Опис змін та виправлень
+1
+05.06.2025
+0.1
+Оформлено текстовий звіт
+
+2 ЗАВДАННЯ
+     - Розробити веб-додаток PHP, що реалізує інтернет-магазин із авторизацією користувача.
+     - Видалити дублювання коду шапки (header) та підвалу (footer) сайту.
+     - Реалізувати сторінку авторизації з перевіркою логіна і пароля, без бази даних.
+     - Обмежити доступ до захищених сторінок для неавторизованих користувачів.
+     - Додати сторінку профілю з редагуванням особистих даних та завантаженням фото.
+     - Зберігати дані профілю у базу даних.
+     - Фото перевіряти на допустимий формат (jpeg, png, gif).
+     - Показувати повідомлення про помилки у формі, якщо дані невалідні.
+     
+
+3 ОПИС ВИКОНАНОЇ РОБОТИ
+     - Реалізовано головну сторінку (index.php), що підключає header, footer та вміст обраної сторінки.
+     - Винесено шапку і підвал сайту в окремі файли header.php і footer.php.
+     - Реалізовано маршрутизацію сторінок через параметр "page" в URL.
+     - Додано обмеження на доступ до сторінок сайту (products, cart, profile) лише після авторизації.
+     - Створено сторінку входу login.php з перевіркою логіна і пароля.
+     - Додано сторінку профілю з формою та завантаженням фото.
+     - Додано перевірку валідності даних профілю (довжина, дата народження, опис >= 50 символів).
+     - Валідація та обробка фото.
+     - Розмітка форм оформлена через CSS, додано превʼю фото та збереження зображення.
+     - Дані товарів та профілів користувачів зберігаються у SQLite-базі через PDO. 
+     - Структура бази створюється динамічно під час запуску, запити виконуються через підготовлені інструкції.
+     - Результати роботи подано у вигляді рисунків Б1-Б6.
+
+4 ВИСНОВКИ
+     - У результаті виконання лабораторної роботи було реалізовано інтернет-магазин із системою авторизації.
+     - Отримано навички розділення структури сайту на компоненти (header, footer).
+     - Реалізовано захист доступу до сторінок для неавторизованих користувачів.
+     - Створено функціонал реєстрації профілю з фото та перевіркою даних.
+     - Реалізоване рішення відповідає вимогам лабораторного завдання.
+     - Забезпечено зручність інтерфейсу та безпеку введення користувацьких даних.
+
+
+
+
+
+
+
+
+ДОДАТОК А
+Відеозапис
+Відеозапис презентації результатів лабораторної роботи: https://www.youtube.com/watch?v=wPAOvVncgU8
+
+Хронологічний опис відеозапису:
+00:00 — Вступ та опис завдання.
+00:50 — Пояснення про файл index.php та додатково про окремі файли header.php та footer.php.
+05:45 — Пояснення про файл login.php.
+12:36 — Пояснення про файл profile.php.
+14:03 — Демонастрація робти сайту.
+
+
+ДОДАТОК Б
+Графічні матеріали
+
+Рисунок Б.1 — Головна сторінка (користувач не авторизований)
+
+
+Рисунок Б.2 — Сторінка входу
+
+
+Рисунок Б.3 — При успішній авторизації потрапляємо в каталог товарів
+
+
+Рисунок Б.4 — Профіль користувача
+
+
+Рисунок Б.5 — При натискані на зберегти (поля не заповнені або заповнені неправильно)
+
+
+Рисунок Б.6 — При натискані на зберегти (поля заповнені правильно)
+
+
+ДОДАТОК В
+Програмний код
+Файл index.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/index.php
+ 1. <?php
+ 2. session_start();
+ 3. 
+ 4. require_once __DIR__ . '/database/db.php';
+ 5. // Підключаємо файл з обліковими даними для логіна
+ 6. // Шлях змінено з '/data/credential.php' на '/database/credential.php'
+ 7. $credentials = require_once __DIR__ . '/database/credential.php';
+ 8. 
+ 9. // --- Глобальна логіка, доступна для всіх сторінок ---
+10. try {
+11.     $stmt = $pdo->query("SELECT id, name, price FROM Products ORDER BY id");
+12.     $allProducts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+13.     $products = [];
+14.     foreach ($allProducts as $product) {
+15.         $products[$product['id']] = $product;
+16.     }
+17. } catch (PDOException $e) {
+18.     die("Помилка при отриманні товарів з бази даних: " . $e->getMessage());
+19. }
+20. 
+21. if (!isset($_SESSION['cart'])) {
+22.     $_SESSION['cart'] = [];
+23. }
+24. 
+25. function getCartTotalQuantity() {
+26.     return array_sum($_SESSION['cart']);
+27. }
+28. 
+29. // --- Обробка POST-запитів для кошика та логіна ---
+30. if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+31.     // Логіка додавання до кошика
+32.     if (isset($_POST['add_to_cart'])) {
+33.         $productId = filter_input(INPUT_POST, 'product_id', FILTER_VALIDATE_INT);
+34.         $quantity = filter_input(INPUT_POST, 'quantity', FILTER_VALIDATE_INT);
+35. 
+36.         if ($productId && isset($products[$productId]) && $quantity > 0) {
+37.             if (isset($_SESSION['cart'][$productId])) {
+38.                 $_SESSION['cart'][$productId] += $quantity;
+39.             } else {
+40.                 $_SESSION['cart'][$productId] = $quantity;
+41.             }
+42.         }
+43.         header('Location: index.php?page=products');
+44.         exit();
+45.     }
+46. 
+47.     // Логіка видалення з кошика
+48.     if (isset($_POST['remove_item'])) {
+49.         $productIdToRemove = filter_input(INPUT_POST, 'remove_item_id', FILTER_VALIDATE_INT);
+50.         if ($productIdToRemove && isset($_SESSION['cart'][$productIdToRemove])) {
+51.             unset($_SESSION['cart'][$productIdToRemove]); 
+52.         }
+53.         header('Location: index.php?page=cart'); 
+54.         exit();
+55.     }
+56. 
+57.     // Логіка очищення кошика
+58.     if (isset($_POST['clear_cart'])) {
+59.         $_SESSION['cart'] = []; 
+60.         header('Location: index.php?page=cart'); 
+61.         exit();
+62.     }
+63. 
+64.     // --- Логіка логіна (обробка POST-запиту з форми логіна) ---
+65.     if (isset($_POST['login_submit'])) {
+66.         $username = filter_input(INPUT_POST, 'username', FILTER_SANITIZE_SPECIAL_CHARS);
+67.         $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_SPECIAL_CHARS);
+68. 
+69.         // Перевірка облікових даних
+70.         if ($username === $credentials['userName'] && $password === $credentials['password']) {
+71.             $_SESSION['user_logged_in'] = true;
+72.             $_SESSION['username'] = $username;
+73.             $_SESSION['login_time'] = date('Y-m-d H:i:s'); // Запис часу логіна
+74.             header('Location: index.php?page=products'); // Перенаправлення на сторінку товарів після успішного логіна
+75.             exit();
+76.         } else {
+77.             $_SESSION['login_error'] = "Неправильний логін або пароль.";
+78.             header('Location: index.php?page=login'); // Повернення на сторінку логіна з повідомленням про помилку
+79.             exit();
+80.         }
+81.     }
+82. }
+83. 
+84. // --- Логіка логаута (обробка GET-запиту) ---
+85. if (isset($_GET['page']) && $_GET['page'] === 'logout') {
+86.     session_unset();   // Видаляє всі змінні сесії
+87.     session_destroy(); // Знищує сесію
+88.     header('Location: index.php?page=home'); // Перенаправлення на головну сторінку
+89.     exit();
+90. }
+91. 
+92. // --- Визначення поточної сторінки та обмеження доступу ---
+93. $page = $_GET['page'] ?? 'home';
+94. 
+95. // Сторінки, доступні без авторизації
+96. $publicPages = ['home', 'login', 'page404']; // page404 додано до публічних
+97. 
+98. // Перевіряємо, чи користувач не авторизований і намагається отримати доступ до закритої сторінки
+99. if (!isset($_SESSION['user_logged_in']) || $_SESSION['user_logged_in'] !== true) {
+100.     if (!in_array($page, $publicPages)) {
+101.         // Якщо сторінка не є публічною, примусово показуємо page404 з повідомленням про логін
+102.         $page = 'page404_access_denied'; // Використовуємо спеціальну "сторінку", яка буде оброблена в switch
+103.     }
+104. }
+105. 
+106. // --- Кінець глобальної логіки ---
+107. 
+108. // Підключаємо шапку сайту
+109. require_once 'header.php';
+110. 
+111. // Логіка перемикання сторінок
+112. switch ($page) { 
+113.     case "home" :
+114.         require_once ( "pages/home.php" ); 
+115.         break; 
+116.     case "cart" :
+117.         require_once ( "pages/cart.php" ); 
+118.         break; 
+119.     case "products" :
+120.         require_once ( "pages/products.php" ); 
+121.         break; 
+122.     case "login" : // Додано сторінку логіна
+123.         require_once ( "pages/login.php" ); 
+124.         break;
+125.     case "profile" : // Додано сторінку профілю
+126.         require_once ( "pages/profile.php" ); 
+127.         break;
+128.     case "page404_access_denied": // Обробка випадку обмеженого доступу
+129.     case "404": // Якщо 404 запитується напряму
+130.     default :
+131.         require_once ( "pages/page404.php" ); 
+132.         break ;
+133. }
+134. 
+135. // Підключаємо підвал сайту
+136. require_once 'footer.php';
+
+Файл profile.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/profile.php
+ 1  <?php
+ 2  // Шлях до файлу, де зберігаються дані профілю.
+ 3  // Зверніть увагу: '__DIR__' - це папка 'pages',
+ 4  // '/../database/user_profile.php' - це крок вгору до кореня, потім до 'database'.
+ 5  $profile_data_file = __DIR__ . '/../database/user_profile.php';
+ 6
+ 7  // Ініціалізуємо змінну для даних профілю
+ 8  $profile_data = [];
+ 9
+10  // Перевіряємо, чи існує файл з даними профілю, і якщо так, завантажуємо їх.
+11  // 'require' тут використовується, тому що user_profile.php повертає масив.
+12  if (file_exists($profile_data_file)) {
+13      $profile_data = require $profile_data_file;
+14  } else {
+15      // Якщо файл ще не існує, ініціалізуємо його дефолтними значеннями
+16      // та створюємо файл, щоб уникнути помилок при першому завантаженні.
+17      $profile_data = [
+18          'first_name' => '',
+19          'last_name' => '',
+20          'dob' => '', // Date of Birth (YYYY-MM-DD)
+21          'bio' => '', // Biography or brief info
+22          'profile_picture' => 'uploads/default.png' // Шлях до дефолтного фото
+23      ];
+24      // Створюємо файл з початковими даними
+25      file_put_contents($profile_data_file, '<?php return ' . var_export($profile_data, true) . ';');
+26  }
+27
+28  $errors = [];
+29  $messages = [];
+30
+31  // --- Обробка POST-запиту для збереження профілю ---
+32  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_profile'])) {
+33      // Отримання та фільтрація даних з форми
+34      $first_name = filter_input(INPUT_POST, 'first_name', FILTER_SANITIZE_SPECIAL_CHARS);
+35      $last_name = filter_input(INPUT_POST, 'last_name', FILTER_SANITIZE_SPECIAL_CHARS);
+36      $dob = filter_input(INPUT_POST, 'dob', FILTER_SANITIZE_SPECIAL_CHARS);
+37      $bio = filter_input(INPUT_POST, 'bio', FILTER_SANITIZE_SPECIAL_CHARS);
+38
+39      // --- Валідація полів ---
+40      if (empty($first_name) || empty($last_name) || empty($dob) || empty($bio)) {
+41          $errors[] = "Усі поля повинні бути заповнені.";
+42      }
+43
+44      if (mb_strlen($first_name) < 2) {
+45          $errors[] = "Ім'я повинно містити принаймні 2 символи.";
+46      }
+47      if (mb_strlen($last_name) < 2) {
+48          $errors[] = "Прізвище повинно містити принаймні 2 символи.";
+49      }
+50
+51      // Валідація віку (не менше 16 років)
+52      if (!empty($dob)) {
+53          try {
+54              $birthDate = new DateTime($dob);
+55              $today = new DateTime();
+56              $age = $today->diff($birthDate)->y;
+57              if ($age < 16) {
+58                  $errors[] = "Вам має бути не менше 16 років.";
+59              }
+60          } catch (Exception $e) {
+61              $errors[] = "Невірний формат дати народження.";
+62          }
+63      } else {
+64          $errors[] = "Дата народження недійсна.";
+65      }
+66
+67      if (mb_strlen($bio) < 50) {
+68          $errors[] = "Стисла інформація повинна містити не менше 50 символів.";
+69      }
+70
+71      // --- Обробка завантаження фото ---
+72      // Поточний шлях до фото або дефолтний
+73      $uploaded_file_path = $profile_data['profile_picture']; 
+74      
+75      if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] === UPLOAD_ERR_OK) {
+76          $file = $_FILES['profile_picture'];
+77          $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+78          $max_size = 5 * 1024 * 1024; // 5 MB
+79
+80          // Перевірка типу файлу
+81          if (!in_array($file['type'], $allowed_types)) {
+82              $errors[] = "Недопустимий тип файлу. Дозволено тільки JPG, PNG, GIF.";
+83          }
+84          // Перевірка розміру файлу
+85          if ($file['size'] > $max_size) {
+86              $errors[] = "Розмір файлу перевищує 5 МБ.";
+87          }
+88          // Перевірка на реальне зображення (можна додати більш глибоку перевірку)
+89          $image_info = getimagesize($file['tmp_name']);
+90          if ($image_info === false) {
+91              $errors[] = "Завантажений файл не є дійсним зображенням.";
+92          }
+93
+94
+95          if (empty($errors)) {
+96              // Шлях для завантаження файлу.
+97              // 'uploads/' знаходиться в корені проекту (поруч з index.php).
+98              $upload_dir = 'uploads/'; 
+99              $file_extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+100             $new_file_name = uniqid('profile_') . '.' . $file_extension; // Унікальне ім'я файлу
+101             $destination = $upload_dir . $new_file_name;
+102
+103             // Переміщення завантаженого файлу з тимчасового розташування на постійне
+104             if (move_uploaded_file($file['tmp_name'], $destination)) {
+105                 $uploaded_file_path = $destination;
+106                 $messages[] = "Фото успішно завантажено!";
+107                 
+108                 // Видаляємо старе фото, якщо воно не дефолтне і існує
+109                 if (isset($profile_data['profile_picture']) && $profile_data['profile_picture'] !== 'uploads/default.png' && file_exists($profile_data['profile_picture'])) {
+110                     unlink($profile_data['profile_picture']);
+111                 }
+112             } else {
+113                 $errors[] = "Помилка при завантаженні фото. Перевірте права на запис в папку 'uploads'.";
+114             }
+115         }
+116     }
+117
+118     // --- Збереження даних профілю, якщо немає помилок валідації ---
+119     if (empty($errors)) {
+120         // Оновлюємо дані профілю для збереження
+121         $profile_data['first_name'] = $first_name;
+122         $profile_data['last_name'] = $last_name;
+123         $profile_data['dob'] = $dob;
+124         $profile_data['bio'] = $bio;
+125         $profile_data['profile_picture'] = $uploaded_file_path;
+126
+127         // Зберігаємо оновлений масив у файл database/user_profile.php
+128         // var_export() дозволяє зберегти масив як валідний PHP-код.
+129         $file_content = '<?php return ' . var_export($profile_data, true) . ';';
+130         
+131         if (file_put_contents($profile_data_file, $file_content) !== false) {
+132             $messages[] = "Профіль успішно оновлено!";
+133         } else {
+134             $errors[] = "Помилка при збереженні даних профілю. Перевірте права на запис до файлу.";
+135         }
+136     }
+137 }
+138
+139 // --- Відображення форми профілю ---
+140 ?>
+141
+142 <h2>Мій Профіль</h2>
+143
+144 <?php
+145 // Виводимо повідомлення про помилки (якщо є)
+146 foreach ($errors as $error) {
+147     echo '<p style="color: red;">' . htmlspecialchars($error) . '</p>';
+148 }
+149 // Виводимо повідомлення про успіх (якщо є)
+150 foreach ($messages as $msg) {
+151     echo '<p style="color: green;">' . htmlspecialchars($msg) . '</p>';
+152 }
+153 ?>
+154
+155 <div style="text-align: center; margin-bottom: 20px;">
+156     <img src="<?php echo htmlspecialchars($profile_data['profile_picture']); ?>" alt="Profile Picture" style="max-width: 200px; border-radius: 50%; border: 2px solid #a678b2;">
+157 </div>
+158
+159 <form action="index.php?page=profile" method="POST" enctype="multipart/form-data">
+160     <div>
+161         <label for="first_name">Ім'я:</label>
+162         <input type="text" id="first_name" name="first_name" value="<?php echo htmlspecialchars($profile_data['first_name'] ?? ''); ?>" required>
+163     </div>
+164     <div>
+165         <label for="last_name">Прізвище:</label>
+166         <input type="text" id="last_name" name="last_name" value="<?php echo htmlspecialchars($profile_data['last_name'] ?? ''); ?>" required>
+167     </div>
+168     <div>
+169         <label for="dob">Дата народження:</label>
+170         <input type="date" id="dob" name="dob" value="<?php echo htmlspecialchars($profile_data['dob'] ?? ''); ?>" required>
+171     </div>
+172     <div>
+173         <label for="bio">Коротка інформація:</label>
+174         <textarea id="bio" name="bio" rows="5" required><?php echo htmlspecialchars($profile_data['bio'] ?? ''); ?></textarea>
+175     </div>
+176     <div>
+177         <label for="profile_picture">Фото профілю:</label>
+178         <input type="file" id="profile_picture" name="profile_picture" accept="image/*">
+179     </div>
+180     <button type="submit" name="save_profile">Зберегти</button>
+181 </form>
+
+Файл products.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/products.php
+ 1  <?php
+ 2  ?>
+ 3
+ 4  <h2>Наші товари</h2>
+ 5  <div class="product-list">
+ 6      <?php foreach ($products as $id => $product):?>
+ 7          <div class="product-item">
+ 8              <h3><?php echo htmlspecialchars($product['name']); ?></h3>
+ 9              <p>Ціна: <?php echo htmlspecialchars($product['price']); ?> грн</p>
+10              <form action="index.php" method="POST"> <input type="hidden" name="product_id" value="<?php echo $id; ?>">
+11                  <label for="qty_<?php echo $id; ?>">Кількість:</label>
+12                  <input type="number" id="qty_<?php echo $id; ?>" name="quantity" value="1" min="1" max="99">
+13                  <button type="submit" name="add_to_cart">Купити</button>
+14              </form>
+15          </div>
+16      <?php endforeach; ?>
+17  </div>
+
+Файл page404.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/page404.php
+1 <h1>404 - Сторінку не знайдено</h1>
+2 <p>На жаль, запитана сторінка не існує.</p>
+3 <?php if (!isset($_SESSION['user_logged_in'])): ?>
+4     <p>Для перегляду контенту сайту, будь ласка, <a href="index.php?page=login">авторизуйтеся</a>.</p>
+5 <?php endif; ?>
+
+Файл login.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/login.php
+1 <h2>Вхід на сайт</h2>
+2 <?php if (isset($_SESSION['login_error'])): ?>
+3     <p style="color: red;"><?php echo htmlspecialchars($_SESSION['login_error']); unset($_SESSION['login_error']); ?></p>
+4 <?php endif; ?>
+5
+6 <form action="index.php" method="POST">
+7     <div>
+8         <label for="username">Ім'я користувача:</label>
+9         <input type="text" id="username" name="username" required>
+10     </div>
+11     <div>
+12         <label for="password">Пароль:</label>
+13         <input type="password" id="password" name="password" required>
+14     </div>
+15     <button type="submit" name="login_submit">Увійти</button>
+16 </form>
+   
+Файл home.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/home.php
+1 <h2>Вітаємо у Продовольчому магазині "Весна"!</h2>
+2 <p>Тут ви знайдете широкий асортимент свіжих продуктів та смачних десертів.</p>
+3 <p>Перейдіть до <a href="index.php?page=products">наших товарів</a>, щоб розпочати покупки!</p>
+   
+Файл cart.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/pages/cart.php
+1 <?php
+ 2 $total_bill = 0;
+ 3 ?>
+ 4
+ 5 <h2>Ваш кошик</h2>
+ 6 <?php if (empty($_SESSION['cart'])): ?>
+ 7     <p>Ваш кошик порожній.</p>
+ 8     <p><a href="index.php?page=products">Перейти до покупок</a></p>
+ 9 <?php else: ?>
+10     <table class="cart-table">
+11         <thead>
+12             <tr>
+13                 <th>№</th>
+14                 <th>Назва</th>
+15                 <th>Ціна</th>
+16                 <th>Кількість</th>
+17                 <th>Вартість</th>
+18                 <th>Дія</th> </tr>
+19         </thead>
+20         <tbody>
+21             <?php
+22             $item_num = 1;
+23             foreach ($_SESSION['cart'] as $productId => $quantity):
+24                 if (isset($products[$productId])):
+25                     $product_name = $products[$productId]['name'];
+26                     $product_price = $products[$productId]['price'];
+27                     $item_cost = $product_price * $quantity;
+28                     $total_bill += $item_cost;
+29             ?>
+30                 <tr>
+31                     <td><?php echo $item_num++; ?></td>
+32                     <td><?php echo htmlspecialchars($product_name); ?></td>
+33                     <td><?php echo htmlspecialchars($product_price); ?> грн</td>
+34                     <td><?php echo htmlspecialchars($quantity); ?></td>
+35                     <td><?php echo htmlspecialchars($item_cost); ?> грн</td>
+36                     <td>
+37                         <form action="index.php" method="POST" class="remove-item-form">
+38                             <input type="hidden" name="remove_item_id" value="<?php echo $productId; ?>">
+39                             <button type="submit" name="remove_item" class="remove-btn">Видалити</button>
+40                         </form>
+41                     </td>
+42                 </tr>
+43             <?php
+44                 endif;
+45             endforeach;
+46             ?>
+47         </tbody>
+48     </table>
+49     <div class="cart-summary">
+50         <div class="cart-total">
+51             РАЗОМ ДО СПЛАТИ: <?php echo htmlspecialchars($total_bill); ?> грн
+52         </div>
+53         <form action="index.php" method="POST" class="clear-cart-form">
+54             <button type="submit" name="clear_cart" class="clear-cart-btn">Очистити кошик</button>
+55         </form>
+56     </div>
+57 <?php endif; ?>
+   
+Файл header.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/header.php
+1 <!DOCTYPE html>
+2 <html>
+3   <head>
+4     <meta charset="UTF-8">
+5     <title>Продовольчий магазин весна</title>
+6     <link rel="stylesheet" href="assets/css/style.css">
+7   </head>
+8   <body>
+9     <div id="main-container">
+10       <header>
+11         <nav class="header-nav">
+12           <a href="index.php?page=home">Home</a> |
+13           <a href="index.php?page=products">Products</a> |
+14           <?php if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true): ?>
+15               <a href="index.php?page=cart">Cart (<span class="cart-info"><?php echo getCartTotalQuantity(); ?></span>)</a> |
+16               <a href="index.php?page=profile">Profile</a> |
+17               <a href="index.php?page=logout">Logout</a>
+18           <?php else: ?>
+19               <a href="index.php?page=login">Login</a>
+20           <?php endif; ?>
+21         </nav>
+22       </header>
+23       <main>
+   
+Файл footer.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/footer.php
+1 </main>
+2         <footer>
+3             <nav class="footer-nav">
+4                 <a href="index.php?page=home">Home</a> |
+5                 <a href="index.php?page=products">Products</a> |
+6                 <a href="index.php?page=cart">Cart</a>
+7             </nav>
+8         </footer>
+9     </div>
+10 </body>
+11 </html>
+       
+Файл db.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/database/db.php
+ 1 <?php
+ 2 $dbFile = __DIR__ . '/../data/shop.sqlite'; 
+ 3
+ 4 $dataDir = dirname($dbFile);
+ 5 if (!is_dir($dataDir)) {
+ 6     mkdir($dataDir, 0777, true); 
+ 7 }
+ 8
+ 9 $initDb = !file_exists($dbFile); 
+10
+11 try {
+12     $pdo = new PDO("sqlite:$dbFile"); 
+13     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION); 
+14
+15     if ($initDb) {
+16         $pdo->exec("
+17             CREATE TABLE IF NOT EXISTS Products (
+18                 id INTEGER PRIMARY KEY,
+19                 name TEXT NOT NULL,
+20                 price REAL NOT NULL CHECK(price >= 0)
+21             );
+22         ");
+23
+24             $products_initial_data = [
+25                 ['id' => 101, "name" => "Круасан з мигдалем", "price" => 45.00],
+26                 ['id' => 102, "name" => "Капучино", "price" => 60.50],
+27                 ['id' => 103, "name" => "Фруктовий смузі", "price" => 75.00],
+28                 ['id' => 104, "name" => "Торт Наполеон (шматочок)", "price" => 90.00],
+29                 ['id' => 105, "name" => "Сендвіч з куркою", "price" => 80.75],
+30                 ['id' => 106, "name" => "Латте з карамеллю", "price" => 68.00],
+31                 ['id' => 107, "name" => "Морозиво Пломбір", "price" => 35.50],
+32                 ['id' => 108, "name" => "Чізкейк класичний", "price" => 85.00],
+33                 ['id' => 109, "name" => "Свіжовичавлений апельсиновий сік", "price" => 95.00],
+34                 ['id' => 110, "name" => "Вегетаріанський салат", "price" => 120.00]
+35             ];
+36
+37         $stmt = $pdo->prepare("INSERT INTO Products (id, name, price) VALUES (:id, :name, :price)");
+38
+39         foreach ($products_initial_data as $product) {
+40             $stmt->execute([
+41                 ':id' => $product['id'],
+42                 ':name' => $product['name'],
+43                 ':price' => $product['price']
+44             ]);
+45         }
+46     }
+47 } catch (PDOException $e) {
+48     die("Помилка підключення або ініціалізації бази даних: " . $e->getMessage());
+49 }
+
+Файл credential.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/database/credential.php
+1 <?php
+2 return [
+3    'userName' => 'Test',
+4   'password' => '123123'
+5 ];
+
+Файл user_profile.php
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/database/user_profile.php
+1 <?php
+2 return [
+3    'first_name' => '',
+4    'last_name' => '',
+5    'dob' => '', // Date of Birth (YYYY-MM-DD)
+6    'bio' => '', // Biography or brief info
+7    'profile_picture' => 'uploads/default.png' // Шлях до фото
+8 ];
+
+Файл style.css
+GitHub репозиторій: https://github.com/NureRymchukDanylo/smp-pzpi-23-3-rymchuk-danylo/blob/main/Lab4/smp-pzpi-23-3-rymchuk-danylo-lab4/assets/css/style.css
+1 /* Базові стилі */
+  2 body {
+  3     font-family: 'Segoe UI', sans-serif;
+  4     margin: 0;
+  5     background-color: #fdf7ff; /* дуже світлий фіолетовий */
+  6     color: #4a3b57; /* темно-фіолетовий */
+  7 }
+  8
+  9 #main-container {
+ 10     width: 90%;
+ 11     max-width: 1200px;
+ 12     margin: 20px auto;
+ 13     background-color: #fffaff;
+ 14     box-shadow: 0 0 15px rgba(192, 157, 223, 0.2);
+ 15     border-radius: 16px;
+ 16     overflow: hidden;
+ 17 }
+ 18
+ 19 header {
+ 20     background-color: #a678b2; /* м’який фіолетовий */
+ 21     color: #fff;
+ 22     padding: 20px 20px;
+ 23     text-align: center;
+ 24     border-bottom: 5px solid #d3b4e6; /* світло-фіолетовий акцент */
+ 25 }
+ 26
+ 27 .header-nav {
+ 28     display: flex;
+ 29     justify-content: center;
+ 30     gap: 25px;
+ 31 }
+ 32
+ 33 .header-nav a {
+ 34     color: #fff;
+ 35     text-decoration: none;
+ 36     padding: 8px 14px;
+ 37     border-radius: 8px;
+ 38     transition: background-color 0.3s ease;
+ 39 }
+ 40
+ 41 .header-nav a:hover {
+ 42     background-color: #8b5c9e;
+ 43 }
+ 44
+ 45 main {
+ 46     padding: 25px;
+ 47     min-height: 400px;
+ 48 }
+ 49
+ 50 h1, h2 {
+ 51     color: #5c4770;
+ 52     text-align: center;
+ 53     margin-bottom: 20px;
+ 54 }
+ 55
+ 56 /* Стилі для сторінки товарів */
+ 57 .product-list {
+ 58     display: grid;
+ 59     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+ 60     gap: 20px;
+ 61     margin-top: 20px;
+ 62 }
+ 63
+ 64 .product-item {
+ 65     border: 1px solid #eee;
+ 66     padding: 20px;
+ 67     border-radius: 12px;
+ 68     box-shadow: 0 3px 10px rgba(200, 160, 220, 0.1);
+ 69     background-color: #fdf9ff;
+ 70     text-align: center;
+ 71 }
+ 72
+ 73 .product-item h3 {
+ 74     margin-top: 0;
+ 75     color: #a678b2;
+ 76 }
+ 77
+ 78 .product-item p {
+ 79     margin-bottom: 10px;
+ 80     font-size: 1.1em;
+ 81     color: #6b5d77;
+ 82 }
+ 83
+ 84 .product-item input[type="number"] {
+ 85     width: 60px;
+ 86     padding: 8px;
+ 87     border: 1px solid #ccc;
+ 88     border-radius: 6px;
+ 89     margin-right: 10px;
+ 90 }
+ 91
+ 92 .product-item button {
+ 93     padding: 10px 20px;
+ 94     background-color: #b38cc4;
+ 95     color: white;
+ 96     border: none;
+ 97     border-radius: 6px;
+ 98     cursor: pointer;
+ 99     font-size: 1em;
+100     transition: background-color 0.3s ease;
+101 }
+102
+103 .product-item button:hover {
+104     background-color: #a178b0;
+105 }
+106
+107 /* Стилі для сторінки кошика */
+108 .cart-table {
+109     width: 100%;
+110     border-collapse: collapse;
+111     margin-top: 20px;
+112 }
+113
+114 .cart-table th, .cart-table td {
+115     border: 1px solid #ddd;
+116     padding: 12px;
+117     text-align: left;
+118 }
+119
+120 .cart-table th {
+121     background-color: #f3e5f5;
+122     color: #4a3b57;
+123 }
+124
+125 /* Стилі для кнопок в кошику */
+126 .remove-btn {
+127     padding: 6px 12px;
+128     background-color: #e57373;
+129     color: white;
+130     border: none;
+131     border-radius: 6px;
+132     cursor: pointer;
+133     transition: background-color 0.3s ease;
+134 }
+135
+136 .remove-btn:hover {
+137     background-color: #d32f2f;
+138 }
+139
+140 .remove-item-form {
+141     display: inline-block;
+142 }
+143
+144 .cart-summary {
+145     display: flex;
+146     justify-content: flex-end;
+147     align-items: center;
+148     gap: 20px;
+149     margin-top: 20px;
+150     padding: 15px;
+151     background-color: #f5e6fa;
+152     border-radius: 8px;
+153 }
+154
+155 .cart-total {
+156     font-size: 1.5em;
+157     font-weight: bold;
+158     color: #5c4770;
+159 }
+160
+161 .clear-cart-btn {
+162     padding: 10px 20px;
+163     background-color: #ce93d8;
+164     color: white;
+165     border: none;
+166     border-radius: 6px;
+167     cursor: pointer;
+168     font-size: 1em;
+169     transition: background-color 0.3s ease;
+170 }
+171
+172 .clear-cart-btn:hover {
+173     background-color: #ba68c8;
+174 }
+175
+176 /* Стилі для футера */
+177 footer {
+178     background-color: #a678b2;
+179     color: #fff;
+180     padding: 15px 20px;
+181     text-align: center;
+182     border-top: 5px solid #d3b4e6;
+183     margin-top: 20px;
+184 }
+185
+186 .footer-nav {
+187     display: flex;
+188     justify-content: center;
+189     gap: 20px;
+190 }
+191
+192 .footer-nav a {
+193     color: #fff;
+194     text-decoration: none;
+195     padding: 6px 12px;
+196     border-radius: 6px;
+197     transition: background-color 0.3s ease;
+198 }
+199
+200 .footer-nav a:hover {
+201     background-color: #8b5c9e;
+202 }
+203
+204 /* Інші елементи */
+205 .cart-info {
+206     font-weight: bold;
+207     color: #d1a4f4; /* ніжно-фіолетовий */
+208 }
+209
+210 /* Додаткові стилі для 404 сторінки */
+211 main h1 {
+212     color: #c2185b;
+213     margin-top: 50px;
+214 }
+215
+216 .profile-form div {
+217     margin-bottom: 15px;
+218 }
+219 .profile-form label {
+220     display: block;
+221     margin-bottom: 5px;
+222     font-weight: bold;
+223     color: #5c4770;
+224 }
+225 .profile-form input[type="text"],
+226 .profile-form input[type="date"],
+227 .profile-form textarea {
+228     width: 100%;
+229     padding: 10px;
+230     border: 1px solid #ccc;
+231     border-radius: 8px;
+232     box-sizing: border-box; /* Важливо для width: 100% */
+233 }
+234 .profile-form textarea {
+235     resize: vertical; /* Дозволяє зміну розміру по вертикалі */
+236 }
+237 .profile-form button {
+238     padding: 10px 20px;
+239     background-color: #b38cc4;
+240     color: white;
+241     border: none;
+242     border-radius: 6px;
+243     cursor: pointer;
+244     font-size: 1em;
+245     transition: background-color 0.3s ease;
+246 }
+247 .profile-form button:hover {
+248     background-color: #a178b0;
+249 }
